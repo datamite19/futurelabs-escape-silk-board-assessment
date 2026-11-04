@@ -33,6 +33,8 @@ export default function App() {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [turns, isThinking]);
+
+  const handleReset = () => {
     alert("Game progress reset!");
   };
 
