@@ -1,38 +1,38 @@
 "use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { ImageIcon, RotateCcw, ArrowLeft, Trophy } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 
-export default function GalleryPage() {
-  const [memes] = useState([
+export default function App() {
+  const [theme, setTheme] = useState('dark');
+
+  const [gameState, setGameState] = useState({
+    timeMinutes: 420, // 7:00 PM
+    location: "Silk Board Junction",
+    cash: 1000,
+    battery: 100,
+    gameOver: false,
+    statusMessage: "Flight from KIA boards at 9:10 PM. Traffic is standing still."
+  });
+
+  const [turns, setTurns] = useState([
     {
-      title: "The Eternal Meter",
-      caption: "Auto driver: 'Meter? No sir, meter is broken since 2018.'",
-      url: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=800&auto=format&fit=crop&q=80",
-      tag: "#SilkBoardVortex"
-    },
-    {
-      title: "The Teleporting Cab",
-      caption: "Your cab driver accepted your ride and is moving in the exact opposite direction.",
-      url: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80",
-      tag: "#NammaBengaluruTraffic"
-    },
-    {
-      title: "The Shortcut Trap",
-      caption: "Friend: 'Bro I know a shortcut!' *Takes you through 3km of waterlogged muddy lanes*",
-      url: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=800&auto=format&fit=crop&q=80",
-      tag: "#ShortcutDisaster"
-    },
-    {
-      title: "The 4-Second Green Light",
-      caption: "Signal turns green for 4 seconds. Exactly 1 bike crosses. Light turns red again for 8 minutes.",
-      url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80",
-      tag: "#SignalSadness"
+      role: "narrator",
+      time: "7:00 PM",
+      location: "Silk Board Junction",
+      text: "Welcome to Silk Board, maga. It's 7:00 PM. Your flight from KIA boards at 9:10 PM. The endless river of red taillights stretches into the twilight haze. Auto drivers are quoting ₹800 flat. What's your move?",
+      meme: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80"
     }
   ]);
 
-  const handleReset = () => {
+  const [inputAction, setInputAction] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [turns, isThinking]);
     alert("Game progress reset!");
   };
 
