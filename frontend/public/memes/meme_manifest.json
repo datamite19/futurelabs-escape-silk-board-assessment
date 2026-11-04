@@ -1,0 +1,22 @@
+[
+  {"id": "1_sarcasm", "path": "/memes/1_sarcasm.svg", "category": "Sarcasm", "keywords": ["sure", "10 mins", "auto", "promise"], "emotions": ["smug", "sarcastic"]},
+  {"id": "2_disbelief", "path": "/memes/2_disbelief.svg", "category": "Disbelief", "keywords": ["meter", "jam", "what", "stuck"], "emotions": ["shocked", "denial"]},
+  {"id": "3_shock", "path": "/memes/3_shock.svg", "category": "Shock", "keywords": ["surge", "5x", "price", "rupees", "cash"], "emotions": ["surprised", "scared"]},
+  {"id": "4_frustration", "path": "/memes/4_frustration.svg", "category": "Frustration", "keywords": ["silk board", "hate", "why", "moving", "red"], "emotions": ["angry", "annoyed"]},
+  {"id": "5_celebration", "path": "/memes/5_celebration.svg", "category": "Celebration", "keywords": ["crossed", "finally", "moving", "airport"], "emotions": ["happy", "relieved"]},
+  {"id": "6_failure", "path": "/memes/6_failure.svg", "category": "Failure", "keywords": ["missed", "over", "lost", "flight"], "emotions": ["sad", "defeated"]},
+  {"id": "7_confusion", "path": "/memes/7_confusion.svg", "category": "Confusion", "keywords": ["where", "map", "lost", "route"], "emotions": ["confused"]},
+  {"id": "8_desperation", "path": "/memes/8_desperation.svg", "category": "Desperation", "keywords": ["please", "battery", "dying", "help"], "emotions": ["desperate", "panicking"]},
+  {"id": "9_suspicion", "path": "/memes/9_suspicion.svg", "category": "Suspicion", "keywords": ["shortcut", "trust", "driver"], "emotions": ["suspicious"]},
+  {"id": "10_overconfidence", "path": "/memes/10_overconfidence.svg", "category": "Overconfidence", "keywords": ["easy", "plenty of time", "chill"], "emotions": ["confident"]},
+  {"id": "11_food", "path": "/memes/11_food.svg", "category": "Food cravings", "keywords": ["samosa", "hungry", "chai", "eat"], "emotions": ["hungry"]},
+  {"id": "12_demands", "path": "/memes/12_demands.svg", "category": "Unrealistic demands", "keywords": ["fast", "fly", "helicopter"], "emotions": ["crazy"]},
+  {"id": "13_hiring", "path": "/memes/13_hiring.svg", "category": "Corporate hiring", "keywords": ["interview", "hr", "offer"], "emotions": ["tired"]},
+  {"id": "14_startup", "path": "/memes/14_startup.svg", "category": "Startup culture", "keywords": ["founder", "funding", "equity"], "emotions": ["hustle"]},
+  {"id": "15_academic", "path": "/memes/15_academic.svg", "category": "Academic pressure", "keywords": ["exam", "study", "cgpa"], "emotions": ["stressed"]},
+  {"id": "16_traffic", "path": "/memes/16_traffic.svg", "category": "Bengaluru traffic", "keywords": ["bumper", "horn", "stuck"], "emotions": ["dead"]},
+  {"id": "17_cricket", "path": "/memes/17_cricket.svg", "category": "Cricket reactions", "keywords": ["rcb", "kohli", "cup"], "emotions": ["hopeful"]},
+  {"id": "18_internet", "path": "/memes/18_internet.svg", "category": "Internet controversies", "keywords": ["twitter", "x", "cancel"], "emotions": ["drama"]},
+  {"id": "19_genz", "path": "/memes/19_genz.svg", "category": "Gen-Z reactions", "keywords": ["cap", "fr", "bet", "cringe"], "emotions": ["chill"]},
+  {"id": "20_success", "path": "/memes/20_success.svg", "category": "Unexpected success", "keywords": ["worked", "green", "clear"], "emotions": ["amazed"]}
+]

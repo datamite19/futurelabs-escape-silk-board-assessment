@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#81D4FA" rx="15" />
+  <path d="M180 120 L220 180 L280 120 Z" fill="#0277BD" />
+  <circle cx="200" cy="140" r="10" fill="#FFF" />
+  <text x="200" y="240" font-family="sans-serif" font-size="24" font-weight="900" text-anchor="middle" fill="#01579B">JUST POST IT ON X</text>
+  <text x="200" y="270" font-family="sans-serif" font-size="16" text-anchor="middle" fill="#01579B">Maybe the police will clear the jam.</text>
+</svg>

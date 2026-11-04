@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#A5D6A7" rx="15" />
+  <circle cx="200" cy="120" r="70" fill="#4CAF50" />
+  <path d="M160 120 L190 150 L240 90" fill="none" stroke="#FFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="200" y="240" font-family="sans-serif" font-size="26" font-weight="900" text-anchor="middle" fill="#1B5E20">I SURVIVED SILK BOARD</text>
+  <text x="200" y="270" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#1B5E20">And all I got was this SVG.</text>
+</svg>

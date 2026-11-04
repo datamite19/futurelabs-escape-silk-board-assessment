@@ -1,0 +1,7 @@
+[
+  { "topic": "#SilkBoardTraffic", "volume": "45K Tweets", "category": "Traffic", "verified": true, "sentiment": "Angry" },
+  { "topic": "#BengaluruRains", "volume": "120K Tweets", "category": "Weather", "verified": true, "sentiment": "Panic" },
+  { "topic": "Namma Yatri", "volume": "15K Tweets", "category": "Tech", "verified": false, "sentiment": "Positive" },
+  { "topic": "Surge Pricing", "volume": "8K Tweets", "category": "Economics", "verified": true, "sentiment": "Frustrated" },
+  { "topic": "Airport Road", "volume": "33K Tweets", "category": "Traffic", "verified": true, "sentiment": "Neutral" }
+]

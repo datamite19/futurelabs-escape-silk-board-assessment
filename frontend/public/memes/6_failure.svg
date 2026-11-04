@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#90A4AE" rx="15" />
+  <path d="M150 250 L150 100 A50 50 0 0 1 250 100 L250 250 Z" fill="#607D8B" />
+  <text x="200" y="150" font-family="sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#FFF">RIP</text>
+  <text x="200" y="190" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#FFF">Boarding Pass</text>
+  <text x="200" y="280" font-family="sans-serif" font-size="28" font-weight="900" text-anchor="middle" fill="#263238">MISSED THE FLIGHT.</text>
+</svg>

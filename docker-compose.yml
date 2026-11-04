@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  cpp-engine:
+    build:
+      context: ./backend/cpp-engine
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - ENGINE_URL=http://cpp-engine:8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - cpp-engine
+    restart: unless-stopped

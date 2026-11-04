@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#FFCDD2" rx="15" />
+  <path d="M150 80 L250 80 L230 160 L170 160 Z" fill="#FFD54F" />
+  <path d="M190 160 L190 220 L210 220 L210 160 Z" fill="#FFD54F" />
+  <path d="M160 220 L240 220 L240 240 L160 240 Z" fill="#FFD54F" />
+  <text x="200" y="280" font-family="sans-serif" font-size="26" font-weight="900" text-anchor="middle" fill="#B71C1C">ESC N (Ee Sala Cup Namde)</text>
+</svg>

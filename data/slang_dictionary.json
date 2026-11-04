@@ -1,0 +1,9 @@
+[
+  { "term": "Maga / Macha", "meaning": "Friend/Bro", "context": "Casual address", "tone": "friendly", "example": "Maga, traffic is crazy today." },
+  { "term": "Oota aitha?", "meaning": "Have you eaten food?", "context": "Standard greeting", "tone": "polite", "example": "Hey macha, oota aitha?" },
+  { "term": "One and half", "meaning": "1.5x the meter fare", "context": "Auto drivers demanding extra money", "tone": "frustrating", "example": "He asked for one and half rate just to go 2 kms." },
+  { "term": "Yelli ge?", "meaning": "Where to?", "context": "Auto driver asking destination", "tone": "neutral", "example": "Yelli ge? Silk Board? I won't go." },
+  { "term": "Dead end", "meaning": "Traffic standstill", "context": "Silk Board everyday", "tone": "despair", "example": "Bro, it's a dead end at HSR." },
+  { "term": "GG", "meaning": "Good Game / It's over", "context": "When all hope is lost", "tone": "resigned", "example": "Battery died at Silk board. GG." },
+  { "term": "Peak Bengaluru", "meaning": "Absurd tech/startup/traffic moments", "context": "Seeing someone coding on a Rapido", "tone": "sarcastic", "example": "Guy taking a Zoom call on a scooter. Peak Bengaluru." }
+]

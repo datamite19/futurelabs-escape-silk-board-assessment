@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#C5E1A5" rx="15" />
+  <path d="M150 200 L200 50 L250 200 Z" fill="#7CB342" />
+  <path d="M170 200 L180 230 L200 210 L220 230 L230 200 Z" fill="#FF5722" />
+  <text x="200" y="260" font-family="sans-serif" font-size="24" font-weight="900" text-anchor="middle" fill="#33691E">WILL FIX TRAFFIC WITH AI</text>
+  <text x="200" y="285" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#33691E">(Just needs $10M seed funding)</text>
+</svg>

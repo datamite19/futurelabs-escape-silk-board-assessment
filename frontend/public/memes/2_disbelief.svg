@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#4DD0E1" rx="15" />
+  <circle cx="200" cy="130" r="70" fill="#FFF" stroke="#333" stroke-width="5" />
+  <circle cx="175" cy="115" r="15" fill="#333" />
+  <circle cx="225" cy="115" r="15" fill="#333" />
+  <ellipse cx="200" cy="160" rx="10" ry="20" fill="#333" />
+  <text x="200" y="250" font-family="sans-serif" font-size="32" font-weight="900" text-anchor="middle" fill="#000">METER JAM!?</text>
+</svg>
