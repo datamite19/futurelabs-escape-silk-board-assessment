@@ -26,7 +26,7 @@ export default function App() {
 
   const [inputAction, setInputAction] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const chatScrollRef = useRef(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (chatScrollRef.current) {
