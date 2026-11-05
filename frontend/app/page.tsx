@@ -1,359 +1,451 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
+import {
+  BatteryMedium,
+  Clock,
+  Image as ImageIcon,
+  Loader2,
+  MapPin,
+  Moon,
+  RotateCcw,
+  Send,
+  Sun,
+  Wallet,
+} from "lucide-react";
 
-export default function App() {
-  const [theme, setTheme] = useState('dark');
+/* ------------------------------------------------------------------ */
+/* Types                                                              */
+/* ------------------------------------------------------------------ */
 
-  const [gameState, setGameState] = useState({
-    timeMinutes: 420, // 7:00 PM
-    location: "Silk Board Junction",
-    cash: 1000,
-    battery: 100,
-    gameOver: false,
-    statusMessage: "Flight from KIA boards at 9:10 PM. Traffic is standing still."
-  });
+type Theme = "light" | "dark";
+type GameStatus = "playing" | "won" | "lost";
+type Role = "narrator" | "player";
 
-  const [turns, setTurns] = useState([
-    {
-      role: "narrator",
-      time: "7:00 PM",
-      location: "Silk Board Junction",
-      text: "Welcome to Silk Board, maga. It's 7:00 PM. Your flight from KIA boards at 9:10 PM. The endless river of red taillights stretches into the twilight haze. Auto drivers are quoting ₹800 flat. What's your move?",
-      meme: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80"
-    }
+interface GameState {
+  time: string;
+  location: string;
+  cash: number;
+  battery: number;
+  status: GameStatus;
+}
+
+interface Turn {
+  id: number;
+  role: Role;
+  text: string;
+}
+
+interface ChatResponse {
+  narration?: string;
+  state?: Partial<GameState>;
+  error?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+const THEME_KEY = "silk-board-theme";
+
+const INITIAL_STATE: GameState = {
+  time: "6:45 PM",
+  location: "Silk Board Junction",
+  cash: 1200,
+  battery: 42,
+  status: "playing",
+};
+
+const INTRO_TEXT =
+  "It's 6:45 PM at Silk Board Junction. Your flight leaves Kempegowda International Airport at 9:10 PM. " +
+  "The signal has been red for what feels like a geological era, your phone is at 42%, and you have ₹1,200 in your pocket. " +
+  "What do you do?";
+
+const QUICK_ACTIONS: string[] = [
+  "Book a bike taxi",
+  "Take the metro to the nearest station",
+  "Wait it out in the cab",
+  "Walk along the service road",
+];
+
+const clamp = (n: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, n));
+
+/* ------------------------------------------------------------------ */
+/* Component                                                          */
+/* ------------------------------------------------------------------ */
+
+export default function Home() {
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [game, setGame] = useState<GameState>(INITIAL_STATE);
+  const [turns, setTurns] = useState<Turn[]>([
+    { id: 0, role: "narrator", text: INTRO_TEXT },
   ]);
+  const [input, setInput] = useState<string>("");
+  const [isThinking, setIsThinking] = useState<boolean>(false);
 
-  const [inputAction, setInputAction] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Explicitly typed so TypeScript never narrows `.current` to `never`.
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const nextId = useRef<number>(1);
 
+  /* ---- theme persistence (SSR-safe) ---- */
   useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    try {
+      const saved = window.localStorage.getItem(THEME_KEY);
+      if (saved === "light" || saved === "dark") {
+        setTheme(saved);
+      }
+    } catch {
+      /* storage unavailable: keep default */
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => {
+      const next: Theme = prev === "dark" ? "light" : "dark";
+      try {
+        window.localStorage.setItem(THEME_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  /* ---- auto-scroll ---- */
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
     }
   }, [turns, isThinking]);
 
-  const formatTime = (totalMinutes) => {
-    let hours = Math.floor(totalMinutes / 60);
-    let mins = totalMinutes % 60;
-    let ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${hours}:${mins < 10 ? '0' : ''}${mins} ${ampm}`;
-  };
+  /* ---- game actions ---- */
+  const pushTurn = useCallback((role: Role, text: string): void => {
+    const id = nextId.current;
+    nextId.current += 1;
+    setTurns((prev) => [...prev, { id, role, text }]);
+  }, []);
 
-  const executeEngineAndNarrator = async (action) => {
-    setIsThinking(true);
+  const sendAction = useCallback(
+    async (raw: string): Promise<void> => {
+      const message = raw.trim();
+      if (!message || isThinking || game.status !== "playing") return;
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      pushTurn("player", message);
+      setInput("");
+      setIsThinking(true);
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, state: gameState }),
-        signal: controller.signal
-      });
+      try {
+        const history = turns.slice(-10).map((t) => ({
+          role: t.role === "player" ? "user" : "model",
+          text: t.text,
+        }));
 
-      clearTimeout(timeoutId);
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, state: game, history }),
+        });
 
-      if (!response.ok) {
-        throw new Error("API spike");
+        const data: ChatResponse = await res.json();
+
+        if (!res.ok || data.error) {
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
+
+        if (data.narration) {
+          pushTurn("narrator", data.narration);
+        }
+
+        if (data.state) {
+          const patch = data.state;
+          setGame((prev) => ({
+            time: patch.time ?? prev.time,
+            location: patch.location ?? prev.location,
+            cash: clamp(patch.cash ?? prev.cash, 0, 1_000_000),
+            battery: clamp(patch.battery ?? prev.battery, 0, 100),
+            status: patch.status ?? prev.status,
+          }));
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Unknown error";
+        pushTurn(
+          "narrator",
+          `The network dropped out (like everything else on Outer Ring Road). ${reason}. Try again.`
+        );
+      } finally {
+        setIsThinking(false);
       }
+    },
+    [game, isThinking, pushTurn, turns]
+  );
 
-      const data = await response.json();
-      updateGameStateAndTurn(data.narration, data.timeDelta || 18, data.cashDelta || -80, data.batteryDelta || -8, data.newLocation, data.memeUrl);
-
-    } catch (err) {
-      generateRichFallback(action);
-    } finally {
-      setIsThinking(false);
-    }
-  };
-
-  const generateRichFallback = (action) => {
-    const lower = action.toLowerCase();
-    let narration = "";
-    let timeDelta = 18;
-    let cashDelta = -60;
-    let batteryDelta = -5;
-    let newLoc = gameState.location;
-    let memeUrl = null;
-
-    if (lower.includes('airport') || lower.includes('kia') || lower.includes('auto') || lower.includes('cab')) {
-      newLoc = "HSR Layout Flyover";
-      narration = `The auto driver smokes a Beedi and says, "Sir, Silk Board is not a junction, it's an emotional state." After negotiation, you agree on ₹420 and squeeze through the chaotic service lane.`;
-      cashDelta = -420;
-      timeDelta = 22;
-      memeUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=1200&auto=format&fit=crop&q=80";
-    } else if (lower.includes('metro') || lower.includes('train')) {
-      newLoc = "Indiranagar Metro Station";
-      narration = `You abandon the highway chaos, dodging BMTC buses and sprinting to the metro. Inside, techies are arguing about sprint velocity while you zoom past 8km of standstill traffic in 14 minutes!`;
-      cashDelta = -60;
-      timeDelta = 15;
-      memeUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&auto=format&fit=crop&q=80";
-    } else if (lower.includes('walk') || lower.includes('run') || lower.includes('shortcut')) {
-      newLoc = "Koramangala Inner Ring Road";
-      narration = `Your local friend takes you through a 'shortcut' that turns out to be a waterlogged muddy lane. Your shoes are soaked, but you bypassed the main gridlock!`;
-      batteryDelta = -12;
-      timeDelta = 20;
-      memeUrl = "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1200&auto=format&fit=crop&q=80";
-    } else {
-      narration = `You try "${action}". The Bengaluru evening rush answers with blaring horns and exhaust fumes. Time ticks forward by 18 minutes while you inch 200 meters closer to freedom.`;
-      memeUrl = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80";
-    }
-
-    updateGameStateAndTurn(narration, timeDelta, cashDelta, batteryDelta, newLoc, memeUrl);
-  };
-
-  const updateGameStateAndTurn = (narrationText, tDelta, cDelta, bDelta, loc, memeUrl) => {
-    const newTime = gameState.timeMinutes + tDelta;
-    const newCash = Math.max(0, gameState.cash + cDelta);
-    const newBattery = Math.max(0, gameState.battery + bDelta);
-    const updatedLocation = loc || gameState.location;
-
-    setGameState(prev => ({
-      ...prev,
-      timeMinutes: newTime,
-      cash: newCash,
-      battery: newBattery,
-      location: updatedLocation,
-      gameOver: newTime >= 550 || newCash <= 0 || newBattery <= 0 || updatedLocation.includes("Airport") || updatedLocation.includes("KIA")
-    }));
-
-    setTurns(prev => [
-      ...prev,
-      { role: "player", text: inputAction },
-      {
-        role: "narrator",
-        time: formatTime(newTime),
-        location: updatedLocation,
-        text: narrationText,
-        meme: memeUrl || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80"
-      }
-    ]);
-
-    setInputAction("");
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
-    if (!inputAction.trim() || gameState.gameOver) return;
-    executeEngineAndNarrator(inputAction.trim());
+    void sendAction(input);
   };
 
-  const resetGame = () => {
-    setGameState({
-      timeMinutes: 420,
-      location: "Silk Board Junction",
-      cash: 1000,
-      battery: 100,
-      gameOver: false,
-      statusMessage: "Flight from KIA boards at 9:10 PM."
-    });
-    setTurns([{
-      role: "narrator",
-      time: "7:00 PM",
-      location: "Silk Board Junction",
-      text: "Welcome to Silk Board, maga. It's 7:00 PM. Your flight from KIA boards at 9:10 PM. Red taillights stretch endlessly. What's your move?",
-      meme: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80"
-    }]);
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void sendAction(input);
+    }
   };
+
+  const resetGame = (): void => {
+    setGame(INITIAL_STATE);
+    nextId.current = 1;
+    setTurns([{ id: 0, role: "narrator", text: INTRO_TEXT }]);
+    setInput("");
+    setIsThinking(false);
+  };
+
+  /* ---- theme tokens ---- */
+  const dark = theme === "dark";
+  const shell = dark ? "text-stone-100" : "text-stone-900";
+  const overlay = dark
+    ? "linear-gradient(180deg, rgba(12,10,9,0.82) 0%, rgba(12,10,9,0.94) 100%)"
+    : "linear-gradient(180deg, rgba(250,250,249,0.86) 0%, rgba(245,245,244,0.95) 100%)";
+  const panel = dark
+    ? "bg-stone-900/80 border-stone-700"
+    : "bg-white/85 border-stone-300";
+  const narratorBubble = dark
+    ? "bg-stone-800 border-stone-700 text-stone-100"
+    : "bg-stone-100 border-stone-300 text-stone-900";
+  const playerBubble = dark
+    ? "bg-amber-400 text-stone-950 border-amber-300"
+    : "bg-amber-500 text-stone-950 border-amber-600";
+  const subtle = dark ? "text-stone-400" : "text-stone-600";
+  const iconBtn = dark
+    ? "border-stone-600 hover:bg-stone-800"
+    : "border-stone-400 hover:bg-stone-200";
+
+  const batteryLow = game.battery <= 15;
+  const finished = game.status !== "playing";
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col justify-between relative overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
-      
-      {/* Bengaluru Traffic Lane Image as the Chatting Screen Backdrop */}
-      <div className="absolute inset-0 z-0 pointer-events-none fixed">
-        <img 
-          src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1920&auto=format&fit=crop&q=80" 
-          alt="Bengaluru Highway Traffic" 
-          className="w-full h-full object-cover filter brightness-[0.7] contrast-125 scale-105"
-        />
-        <div className={`absolute inset-0 transition-opacity duration-300 ${theme === 'dark' ? 'bg-slate-950/80' : 'bg-slate-100/75'} backdrop-blur-[3px]`}></div>
-      </div>
-
-      {/* Main Container */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-4 w-full flex flex-col h-screen">
-        
-        {/* Top Header & HUD */}
-        <header className={`p-4 rounded-3xl backdrop-blur-2xl border shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 transition-colors ${
-          theme === 'dark' ? 'border-white/10 bg-slate-900/85 text-slate-100' : 'border-slate-300 bg-white/90 text-slate-900'
-        }`}>
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center shadow-lg text-slate-950 text-2xl font-black">
-              🛺
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 via-orange-400 to-blue-400 bg-clip-text text-transparent">
-                Silk Board Survival
-              </h1>
-              <p className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Namma Bengaluru Traffic Edition • KIA Flight @ 9:10 PM</p>
-            </div>
+    <main
+      className={`min-h-screen w-full ${shell}`}
+      style={{
+        backgroundImage: `${overlay}, url('/bengaluru-highway.jpg')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+        backgroundColor: dark ? "#0c0a09" : "#fafaf9",
+      }}
+    >
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-4 sm:py-6">
+        {/* Header */}
+        <header className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Silk Board Survival
+            </h1>
+            <p className={`text-sm ${subtle}`}>
+              Namma Bengaluru Traffic Edition. Reach KIA before 9:10 PM.
+            </p>
           </div>
 
-          {/* HUD Status Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 w-full md:w-auto">
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950/80 text-slate-200' : 'border-slate-300 bg-slate-50 text-slate-800'}`}>
-              <i className="fa-regular fa-clock text-blue-500 text-sm"></i>
-              <div>
-                <div className="text-[9px] uppercase tracking-wider text-slate-400">Time</div>
-                <div className="text-xs font-bold font-mono">{formatTime(gameState.timeMinutes)}</div>
-              </div>
-            </div>
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950/80 text-slate-200' : 'border-slate-300 bg-slate-50 text-slate-800'}`}>
-              <i className="fa-solid fa-location-dot text-rose-500 text-sm"></i>
-              <div>
-                <div className="text-[9px] uppercase tracking-wider text-slate-400">Location</div>
-                <div className="text-xs font-bold truncate max-w-[100px]">{gameState.location}</div>
-              </div>
-            </div>
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950/80 text-slate-200' : 'border-slate-300 bg-slate-50 text-slate-800'}`}>
-              <i className="fa-solid fa-wallet text-emerald-500 text-sm"></i>
-              <div>
-                <div className="text-[9px] uppercase tracking-wider text-slate-400">Cash</div>
-                <div className="text-xs font-bold font-mono text-emerald-500">₹{gameState.cash}</div>
-              </div>
-            </div>
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950/80 text-slate-200' : 'border-slate-300 bg-slate-50 text-slate-800'}`}>
-              <i className="fa-solid fa-battery-three-quarters text-yellow-500 text-sm"></i>
-              <div>
-                <div className="text-[9px] uppercase tracking-wider text-slate-400">Battery</div>
-                <div className="text-xs font-bold font-mono text-yellow-500">{gameState.battery}%</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Fully Working Light/Dark Theme Switcher */}
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={`px-4 py-2.5 rounded-xl border font-semibold text-xs flex items-center gap-2 transition shadow-lg ${
-                theme === 'dark' 
-                  ? 'border-white/10 bg-slate-800 text-yellow-400 hover:bg-slate-700' 
-                  : 'border-slate-300 bg-slate-200 text-slate-800 hover:bg-slate-300'
-              }`}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/gallery"
+              aria-label="Open meme gallery"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
             >
-              <i className={`fa-solid ${theme === 'dark' ? 'fa-sun text-amber-400' : 'fa-moon text-blue-600'}`}></i>
-              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              <ImageIcon className="h-5 w-5" aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              onClick={resetGame}
+              aria-label="Restart game"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+            >
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+            >
+              {dark ? (
+                <Sun className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <Moon className="h-5 w-5" aria-hidden="true" />
+              )}
             </button>
           </div>
         </header>
 
-        {/* Chat / Highway Narrative Scroll Body */}
-        <main 
-          ref={chatScrollRef}
-          className="flex-1 my-3 overflow-y-auto space-y-6 px-3 pr-4 scroll-smooth"
+        {/* HUD */}
+        <section
+          aria-label="Game status"
+          className={`mb-3 grid grid-cols-2 gap-2 rounded-xl border p-3 backdrop-blur sm:grid-cols-4 ${panel}`}
         >
-          {turns.map((turn, idx) => (
-            <div key={idx} className={`space-y-2 ${turn.role === 'player' ? 'flex justify-end' : 'flex flex-col'}`}>
-              {turn.role === 'player' ? (
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-3.5 rounded-2xl rounded-tr-none shadow-2xl max-w-xl text-sm md:text-base font-bold transform transition hover:scale-[1.01] border border-blue-400/40">
-                  <span className="opacity-75 mr-2">{'>'}</span> {turn.text}
-                </div>
-              ) : (
-                <div className="space-y-2 max-w-2xl ml-2 md:ml-6">
-                  <div className={`text-[10px] font-mono uppercase tracking-widest pl-3 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700 font-semibold'}`}>
-                    NARRATOR • {turn.time} • {turn.location}
-                  </div>
-                  <div className={`p-5 rounded-3xl border shadow-2xl backdrop-blur-2xl relative ${
-                    theme === 'dark' ? 'bg-slate-900/90 border-white/15 text-slate-100' : 'bg-white/90 border-slate-300 text-slate-900'
-                  }`}>
-                    <div className="absolute -left-3 top-5 w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">AI</div>
-                    <p className="leading-relaxed text-sm md:text-base mb-3 font-medium">{turn.text}</p>
-                    {turn.meme && (
-                      <div className={`mt-3 rounded-2xl overflow-hidden border shadow-xl ${theme === 'dark' ? 'border-white/10' : 'border-slate-300'}`}>
-                        <img src={turn.meme} alt="Bengaluru Traffic Scene" className="w-full h-48 object-cover hover:scale-105 transition duration-500" />
-                        <div className={`px-3 py-2 text-[11px] font-mono flex justify-between items-center ${theme === 'dark' ? 'bg-slate-950/90 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
-                          <span>📸 Live Traffic Cam: Silk Board Flyover</span>
-                          <span className="text-amber-500 font-bold">#NammaBengaluruTraffic</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          <HudItem
+            icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+            label="Time"
+            value={game.time}
+            subtle={subtle}
+          />
+          <HudItem
+            icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
+            label="Location"
+            value={game.location}
+            subtle={subtle}
+          />
+          <HudItem
+            icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
+            label="Cash"
+            value={`₹${game.cash.toLocaleString("en-IN")}`}
+            subtle={subtle}
+          />
+          <HudItem
+            icon={<BatteryMedium className="h-4 w-4" aria-hidden="true" />}
+            label="Battery"
+            value={`${game.battery}%`}
+            subtle={subtle}
+            warn={batteryLow}
+          />
+        </section>
 
-          {isThinking && (
-            <div className={`flex items-center space-x-3 p-4 ml-6 text-sm font-mono animate-pulse rounded-2xl max-w-md border backdrop-blur-md ${
-              theme === 'dark' ? 'bg-slate-900/70 border-white/10 text-slate-200' : 'bg-white/70 border-slate-300 text-slate-800'
-            }`}>
-              <i className="fa-solid fa-spinner animate-spin text-blue-500 text-lg"></i> Narrator & C++ Engine recalculating alternate flyover routes...
+        {/* Chat */}
+        <section
+          aria-label="Story"
+          className={`flex min-h-0 flex-1 flex-col rounded-xl border backdrop-blur ${panel}`}
+        >
+          <div
+            ref={chatScrollRef}
+            className="flex-1 space-y-3 overflow-y-auto p-4"
+            style={{ maxHeight: "55vh", minHeight: "300px" }}
+            aria-live="polite"
+          >
+            {turns.map((t) => (
+              <div
+                key={t.id}
+                className={`flex ${t.role === "player" ? "justify-end" : "justify-start"}`}
+              >
+                <p
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl border px-4 py-2 text-sm leading-relaxed sm:text-base ${
+                    t.role === "player" ? playerBubble : narratorBubble
+                  }`}
+                >
+                  {t.text}
+                </p>
+              </div>
+            ))}
+
+            {isThinking && (
+              <div className="flex justify-start">
+                <p
+                  className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm ${narratorBubble}`}
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Traffic is deciding your fate…
+                </p>
+              </div>
+            )}
+
+            {finished && (
+              <div
+                className={`rounded-xl border px-4 py-3 text-center text-sm font-semibold ${
+                  game.status === "won"
+                    ? "border-emerald-500 text-emerald-500"
+                    : "border-red-500 text-red-500"
+                }`}
+              >
+                {game.status === "won"
+                  ? "You made it to the gate. Flight caught."
+                  : "The flight has left without you."}
+              </div>
+            )}
+          </div>
+
+          {/* Quick actions */}
+          {!finished && (
+            <div className="flex flex-wrap gap-2 px-4 pb-2">
+              {QUICK_ACTIONS.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  disabled={isThinking}
+                  onClick={() => void sendAction(a)}
+                  className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 sm:text-sm ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+                >
+                  {a}
+                </button>
+              ))}
             </div>
           )}
-        </main>
 
-        {/* Action Input Footer */}
-        <footer className={`p-4 rounded-3xl border backdrop-blur-2xl shrink-0 shadow-2xl mb-3 transition-colors ${
-          theme === 'dark' ? 'border-white/15 bg-slate-900/85 text-slate-100' : 'border-slate-300 bg-white/90 text-slate-900'
-        }`}>
-          <form onSubmit={handleSubmit} className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500 font-mono font-bold text-lg">{'>'}</span>
-              <input 
-                type="text" 
-                value={inputAction} 
-                onChange={(e) => setInputAction(e.target.value)}
-                placeholder="Type your move (e.g., 'bhaiya, airport chaloge? meter se' or 'Take metro')" 
-                className={`w-full pl-11 pr-4 py-4 rounded-2xl border text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition ${
-                  theme === 'dark' 
-                    ? 'border-white/10 bg-slate-950 text-slate-100 placeholder-slate-400' 
-                    : 'border-slate-300 bg-slate-50 text-slate-900 placeholder-slate-500'
-                }`}
-                disabled={gameState.gameOver}
-              />
-            </div>
-            <button 
-              type="submit" 
-              disabled={gameState.gameOver || isThinking}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-7 py-4 rounded-2xl font-bold shadow-xl transition flex items-center gap-2 active:scale-95 shrink-0 disabled:opacity-50 text-sm md:text-base"
+          {/* Input */}
+          <form
+            onSubmit={handleSubmit}
+            className={`flex items-center gap-2 border-t p-3 ${
+              dark ? "border-stone-700" : "border-stone-300"
+            }`}
+          >
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isThinking || finished}
+              placeholder={
+                finished ? "Game over. Press restart to play again." : "What do you do?"
+              }
+              aria-label="Your next move"
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-60 sm:text-base ${
+                dark
+                  ? "border-stone-600 bg-stone-950 text-stone-100 placeholder:text-stone-500"
+                  : "border-stone-400 bg-white text-stone-900 placeholder:text-stone-500"
+              }`}
+            />
+            <button
+              type="submit"
+              disabled={isThinking || finished || input.trim().length === 0}
+              aria-label="Send move"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400 text-stone-950 hover:bg-amber-300 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
             >
-              <span>Move</span>
-              <i className="fa-solid fa-paper-plane text-xs"></i>
+              <Send className="h-5 w-5" aria-hidden="true" />
             </button>
           </form>
-          <div className={`flex items-center justify-between text-[11px] px-2 pt-2 font-mono ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-            <span>🛡️ C++ Rule Validation & Bulletproof 503 Fallback Active</span>
-            <span>Silk Board Escape v1.0</span>
-          </div>
-        </footer>
-
+        </section>
       </div>
+    </main>
+  );
+}
 
-      {/* Game Over / Victory Modal */}
-      {gameState.gameOver && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="p-8 rounded-3xl max-w-md w-full border border-white/20 text-center space-y-6 shadow-2xl bg-slate-900 text-slate-100">
-            <div className="text-6xl animate-bounce">
-              {gameState.location.includes("Airport") || gameState.location.includes("KIA") ? "✈️" : "💀"}
-            </div>
-            <h2 className="text-2xl font-black">
-              {gameState.location.includes("Airport") || gameState.location.includes("KIA") ? "Flight Boarded Successfully!" : "Shift Over: Flight Missed!"}
-            </h2>
-            <p className="text-sm text-slate-400">
-              {gameState.location.includes("Airport") || gameState.location.includes("KIA") 
-                ? "Legendary! You beat the Silk Board vortex and reached KIA before boarding closed." 
-                : "Time expired or funds depleted while stuck at the exact same signal."}
-            </p>
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 flex justify-around text-xs font-mono">
-              <div>Time: <span className="text-blue-400 font-bold">{formatTime(gameState.timeMinutes)}</span></div>
-              <div>Cash: <span className="text-emerald-400 font-bold">₹{gameState.cash}</span></div>
-              <div>Battery: <span className="text-yellow-400 font-bold">{gameState.battery}%</span></div>
-            </div>
-            <button 
-              onClick={resetGame}
-              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3.5 rounded-2xl font-bold shadow-lg transition"
-            >
-              Play Another Shift
-            </button>
-          </div>
-        </div>
-      )}
+/* ------------------------------------------------------------------ */
+/* HUD item                                                           */
+/* ------------------------------------------------------------------ */
 
+interface HudItemProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  subtle: string;
+  warn?: boolean;
+}
+
+function HudItem({ icon, label, value, subtle, warn = false }: HudItemProps) {
+  return (
+    <div className="min-w-0">
+      <div className={`flex items-center gap-1 text-xs ${subtle}`}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div
+        className={`truncate text-sm font-semibold sm:text-base ${
+          warn ? "text-red-500" : ""
+        }`}
+        title={value}
+      >
+        {value}
+      </div>
     </div>
   );
 }
