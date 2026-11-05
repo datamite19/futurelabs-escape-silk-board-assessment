@@ -1,451 +1,269 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
-import {
-  BatteryMedium,
-  Clock,
-  Image as ImageIcon,
-  Loader2,
-  MapPin,
-  Moon,
-  RotateCcw,
-  Send,
-  Sun,
-  Wallet,
-} from "lucide-react";
+import React, { useState, useEffect, useRef } from 'react';
+import { Image as ImageIcon, RotateCcw, Moon, Sun, Send, Battery, Clock, MapPin, DollarSign, ShieldAlert } from 'lucide-react';
 
-/* ------------------------------------------------------------------ */
-/* Types                                                              */
-/* ------------------------------------------------------------------ */
-
-type Theme = "light" | "dark";
-type GameStatus = "playing" | "won" | "lost";
-type Role = "narrator" | "player";
+interface Turn {
+  sender: 'narrator' | 'player';
+  text: string;
+  meme?: string;
+}
 
 interface GameState {
-  time: string;
+  timeMinutes: number; // e.g. 420 for 7:00 PM
   location: string;
   cash: number;
   battery: number;
-  status: GameStatus;
+  gameOver: boolean;
 }
 
-interface Turn {
-  id: number;
-  role: Role;
-  text: string;
-}
+export default function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [gameState, setGameState] = useState<GameState>({
+    timeMinutes: 405, // 6:45 PM
+    location: "Silk Board Junction",
+    cash: 1200,
+    battery: 42,
+    gameOver: false,
+  });
 
-interface ChatResponse {
-  narration?: string;
-  state?: Partial<GameState>;
-  error?: string;
-}
-
-/* ------------------------------------------------------------------ */
-/* Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-const THEME_KEY = "silk-board-theme";
-
-const INITIAL_STATE: GameState = {
-  time: "6:45 PM",
-  location: "Silk Board Junction",
-  cash: 1200,
-  battery: 42,
-  status: "playing",
-};
-
-const INTRO_TEXT =
-  "It's 6:45 PM at Silk Board Junction. Your flight leaves Kempegowda International Airport at 9:10 PM. " +
-  "The signal has been red for what feels like a geological era, your phone is at 42%, and you have ₹1,200 in your pocket. " +
-  "What do you do?";
-
-const QUICK_ACTIONS: string[] = [
-  "Book a bike taxi",
-  "Take the metro to the nearest station",
-  "Wait it out in the cab",
-  "Walk along the service road",
-];
-
-const clamp = (n: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, n));
-
-/* ------------------------------------------------------------------ */
-/* Component                                                          */
-/* ------------------------------------------------------------------ */
-
-export default function Home() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [game, setGame] = useState<GameState>(INITIAL_STATE);
   const [turns, setTurns] = useState<Turn[]>([
-    { id: 0, role: "narrator", text: INTRO_TEXT },
-  ]);
-  const [input, setInput] = useState<string>("");
-  const [isThinking, setIsThinking] = useState<boolean>(false);
-
-  // Explicitly typed so TypeScript never narrows `.current` to `never`.
-  const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const nextId = useRef<number>(1);
-
-  /* ---- theme persistence (SSR-safe) ---- */
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(THEME_KEY);
-      if (saved === "light" || saved === "dark") {
-        setTheme(saved);
-      }
-    } catch {
-      /* storage unavailable: keep default */
+    {
+      sender: 'narrator',
+      text: "It's 6:45 PM at Silk Board Junction. Your flight leaves Kempegowda International Airport at 9:10 PM. The signal has been red for what feels like a geological era, your phone is at 42%, and you have ₹1,200 in your pocket. What do you do?"
     }
-  }, []);
+  ]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next: Theme = prev === "dark" ? "light" : "dark";
-      try {
-        window.localStorage.setItem(THEME_KEY, next);
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
+  const [inputAction, setInputAction] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  /* ---- auto-scroll ---- */
+  // Auto-scroll chat history
   useEffect(() => {
-    const el = chatScrollRef.current;
-    if (el) {
-      el.scrollTop = el.scrollHeight;
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [turns, isThinking]);
 
-  /* ---- game actions ---- */
-  const pushTurn = useCallback((role: Role, text: string): void => {
-    const id = nextId.current;
-    nextId.current += 1;
-    setTurns((prev) => [...prev, { id, role, text }]);
-  }, []);
-
-  const sendAction = useCallback(
-    async (raw: string): Promise<void> => {
-      const message = raw.trim();
-      if (!message || isThinking || game.status !== "playing") return;
-
-      pushTurn("player", message);
-      setInput("");
-      setIsThinking(true);
-
-      try {
-        const history = turns.slice(-10).map((t) => ({
-          role: t.role === "player" ? "user" : "model",
-          text: t.text,
-        }));
-
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, state: game, history }),
-        });
-
-        const data: ChatResponse = await res.json();
-
-        if (!res.ok || data.error) {
-          throw new Error(data.error ?? `Request failed (${res.status})`);
-        }
-
-        if (data.narration) {
-          pushTurn("narrator", data.narration);
-        }
-
-        if (data.state) {
-          const patch = data.state;
-          setGame((prev) => ({
-            time: patch.time ?? prev.time,
-            location: patch.location ?? prev.location,
-            cash: clamp(patch.cash ?? prev.cash, 0, 1_000_000),
-            battery: clamp(patch.battery ?? prev.battery, 0, 100),
-            status: patch.status ?? prev.status,
-          }));
-        }
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : "Unknown error";
-        pushTurn(
-          "narrator",
-          `The network dropped out (like everything else on Outer Ring Road). ${reason}. Try again.`
-        );
-      } finally {
-        setIsThinking(false);
-      }
-    },
-    [game, isThinking, pushTurn, turns]
-  );
-
-  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
-    e.preventDefault();
-    void sendAction(input);
+  const formatTime = (totalMinutes: number) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+    return `${displayHour}:${mins.toString().padStart(2, '0')} ${period}`;
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void sendAction(input);
+  const handleActionSubmit = async (actionText: string) => {
+    if (!actionText.trim() || gameState.gameOver || isThinking) return;
+
+    const userTurn: Turn = { sender: 'player', text: actionText };
+    setTurns(prev => [...prev, userTurn]);
+    setInputAction('');
+    setIsThinking(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionText, gameState })
+      });
+
+      const data = await res.json();
+
+      setGameState({
+        timeMinutes: data.timeMinutes ?? gameState.timeMinutes + 15,
+        location: data.location ?? gameState.location,
+        cash: data.cash ?? gameState.cash,
+        battery: data.battery ?? gameState.battery,
+        gameOver: data.gameOver ?? false
+      });
+
+      setTurns(prev => [...prev, { sender: 'narrator', text: data.text, meme: data.meme }]);
+    } catch (err) {
+      setTurns(prev => [...prev, { 
+        sender: 'narrator', 
+        text: "A sudden wave of Bengaluru traffic gridlock stalls your progress, but you manage to inch forward toward the airport route." 
+      }]);
+    } finally {
+      setIsThinking(false);
     }
   };
 
-  const resetGame = (): void => {
-    setGame(INITIAL_STATE);
-    nextId.current = 1;
-    setTurns([{ id: 0, role: "narrator", text: INTRO_TEXT }]);
-    setInput("");
-    setIsThinking(false);
+  const resetGame = () => {
+    setGameState({
+      timeMinutes: 405,
+      location: "Silk Board Junction",
+      cash: 1200,
+      battery: 42,
+      gameOver: false,
+    });
+    setTurns([
+      {
+        sender: 'narrator',
+        text: "It's 6:45 PM at Silk Board Junction. Your flight leaves Kempegowda International Airport at 9:10 PM. The signal has been red for what feels like a geological era, your phone is at 42%, and you have ₹1,200 in your pocket. What do you do?"
+      }
+    ]);
   };
 
-  /* ---- theme tokens ---- */
-  const dark = theme === "dark";
-  const shell = dark ? "text-stone-100" : "text-stone-900";
-  const overlay = dark
-    ? "linear-gradient(180deg, rgba(12,10,9,0.82) 0%, rgba(12,10,9,0.94) 100%)"
-    : "linear-gradient(180deg, rgba(250,250,249,0.86) 0%, rgba(245,245,244,0.95) 100%)";
-  const panel = dark
-    ? "bg-stone-900/80 border-stone-700"
-    : "bg-white/85 border-stone-300";
-  const narratorBubble = dark
-    ? "bg-stone-800 border-stone-700 text-stone-100"
-    : "bg-stone-100 border-stone-300 text-stone-900";
-  const playerBubble = dark
-    ? "bg-amber-400 text-stone-950 border-amber-300"
-    : "bg-amber-500 text-stone-950 border-amber-600";
-  const subtle = dark ? "text-stone-400" : "text-stone-600";
-  const iconBtn = dark
-    ? "border-stone-600 hover:bg-stone-800"
-    : "border-stone-400 hover:bg-stone-200";
-
-  const batteryLow = game.battery <= 15;
-  const finished = game.status !== "playing";
+  const suggestedActions = [
+    "Book a bike taxi",
+    "Take the metro to the nearest station",
+    "Wait it out in the cab",
+    "Walk along the service road"
+  ];
 
   return (
-    <main
-      className={`min-h-screen w-full ${shell}`}
-      style={{
-        backgroundImage: `${overlay}, url('/bengaluru-highway.jpg')`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-        backgroundColor: dark ? "#0c0a09" : "#fafaf9",
-      }}
-    >
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-4 sm:py-6">
-        {/* Header */}
-        <header className="mb-3 flex items-start justify-between gap-3">
+    <main className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800'}`}>
+      <div className="max-w-3xl mx-auto p-4 sm:p-6 flex flex-col min-h-screen">
+        
+        {/* Header Bar */}
+        <header className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/40">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-amber-500 to-orange-600 bg-clip-text text-transparent">
               Silk Board Survival
             </h1>
-            <p className={`text-sm ${subtle}`}>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
               Namma Bengaluru Traffic Edition. Reach KIA before 9:10 PM.
             </p>
           </div>
-
           <div className="flex items-center gap-2">
-            <Link
-              href="/gallery"
-              aria-label="Open meme gallery"
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+            <button 
+              onClick={resetGame} 
+              title="Reset Game"
+              className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 transition-colors"
             >
-              <ImageIcon className="h-5 w-5" aria-hidden="true" />
-            </Link>
-            <button
-              type="button"
-              onClick={resetGame}
-              aria-label="Restart game"
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
-            >
-              <RotateCcw className="h-5 w-5" aria-hidden="true" />
+              <RotateCcw className="w-5 h-5" />
             </button>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+            <button 
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title="Toggle Theme"
+              className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 transition-colors"
             >
-              {dark ? (
-                <Sun className="h-5 w-5" aria-hidden="true" />
-              ) : (
-                <Moon className="h-5 w-5" aria-hidden="true" />
-              )}
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-400" />}
             </button>
           </div>
         </header>
 
-        {/* HUD */}
-        <section
-          aria-label="Game status"
-          className={`mb-3 grid grid-cols-2 gap-2 rounded-xl border p-3 backdrop-blur sm:grid-cols-4 ${panel}`}
-        >
-          <HudItem
-            icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-            label="Time"
-            value={game.time}
-            subtle={subtle}
-          />
-          <HudItem
-            icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
-            label="Location"
-            value={game.location}
-            subtle={subtle}
-          />
-          <HudItem
-            icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
-            label="Cash"
-            value={`₹${game.cash.toLocaleString("en-IN")}`}
-            subtle={subtle}
-          />
-          <HudItem
-            icon={<BatteryMedium className="h-4 w-4" aria-hidden="true" />}
-            label="Battery"
-            value={`${game.battery}%`}
-            subtle={subtle}
-            warn={batteryLow}
-          />
-        </section>
-
-        {/* Chat */}
-        <section
-          aria-label="Story"
-          className={`flex min-h-0 flex-1 flex-col rounded-xl border backdrop-blur ${panel}`}
-        >
-          <div
-            ref={chatScrollRef}
-            className="flex-1 space-y-3 overflow-y-auto p-4"
-            style={{ maxHeight: "55vh", minHeight: "300px" }}
-            aria-live="polite"
-          >
-            {turns.map((t) => (
-              <div
-                key={t.id}
-                className={`flex ${t.role === "player" ? "justify-end" : "justify-start"}`}
-              >
-                <p
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl border px-4 py-2 text-sm leading-relaxed sm:text-base ${
-                    t.role === "player" ? playerBubble : narratorBubble
-                  }`}
-                >
-                  {t.text}
-                </p>
-              </div>
-            ))}
-
-            {isThinking && (
-              <div className="flex justify-start">
-                <p
-                  className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm ${narratorBubble}`}
-                >
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Traffic is deciding your fate…
-                </p>
-              </div>
-            )}
-
-            {finished && (
-              <div
-                className={`rounded-xl border px-4 py-3 text-center text-sm font-semibold ${
-                  game.status === "won"
-                    ? "border-emerald-500 text-emerald-500"
-                    : "border-red-500 text-red-500"
-                }`}
-              >
-                {game.status === "won"
-                  ? "You made it to the gate. Flight caught."
-                  : "The flight has left without you."}
-              </div>
-            )}
+        {/* HUD Status Bar */}
+        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl mb-6 border shadow-lg ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-amber-500" />
+            <div>
+              <div className="text-xs text-slate-400">Time</div>
+              <div className="font-bold text-sm sm:text-base">{formatTime(gameState.timeMinutes)}</div>
+            </div>
           </div>
+          <div className="flex items-center gap-3">
+            <MapPin className="w-5 h-5 text-red-500" />
+            <div>
+              <div className="text-xs text-slate-400">Location</div>
+              <div className="font-bold text-xs sm:text-sm truncate max-w-[120px]">{gameState.location}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <DollarSign className="w-5 h-5 text-emerald-500" />
+            <div>
+              <div className="text-xs text-slate-400">Cash</div>
+              <div className="font-bold text-sm sm:text-base">₹{gameState.cash}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Battery className="w-5 h-5 text-cyan-500" />
+            <div>
+              <div className="text-xs text-slate-400">Battery</div>
+              <div className="font-bold text-sm sm:text-base">{gameState.battery}%</div>
+            </div>
+          </div>
+        </div>
 
-          {/* Quick actions */}
-          {!finished && (
-            <div className="flex flex-wrap gap-2 px-4 pb-2">
-              {QUICK_ACTIONS.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  disabled={isThinking}
-                  onClick={() => void sendAction(a)}
-                  className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 sm:text-sm ${iconBtn} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
-                >
-                  {a}
-                </button>
-              ))}
+        {/* Chat / Narrative Window */}
+        <div 
+          ref={chatScrollRef} 
+          className={`flex-1 overflow-y-auto max-h-[50vh] sm:max-h-[55vh] p-4 rounded-2xl mb-4 space-y-4 border ${theme === 'dark' ? 'bg-slate-900/40 border-slate-800' : 'bg-white/80 border-slate-200'}`}
+        >
+          {turns.map((turn, idx) => (
+            <div key={idx} className={`flex flex-col ${turn.sender === 'player' ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl text-sm sm:text-base shadow-sm ${
+                turn.sender === 'player' 
+                  ? 'bg-amber-600 text-white rounded-br-none' 
+                  : theme === 'dark' ? 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700/50' : 'bg-slate-100 text-slate-900 rounded-bl-none border border-slate-200'
+              }`}>
+                {turn.text}
+                {turn.meme && (
+                  <div className="mt-3 rounded-lg overflow-hidden border border-slate-700">
+                    <img src={turn.meme} alt="Traffic situation visual" className="w-full h-48 object-cover" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {isThinking && (
+            <div className="flex items-center gap-2 text-slate-400 text-sm italic p-2">
+              <span className="animate-pulse">Navigating through the Bengaluru gridlock...</span>
             </div>
           )}
+        </div>
 
-          {/* Input */}
-          <form
-            onSubmit={handleSubmit}
-            className={`flex items-center gap-2 border-t p-3 ${
-              dark ? "border-stone-700" : "border-stone-300"
-            }`}
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isThinking || finished}
-              placeholder={
-                finished ? "Game over. Press restart to play again." : "What do you do?"
-              }
-              aria-label="Your next move"
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-60 sm:text-base ${
-                dark
-                  ? "border-stone-600 bg-stone-950 text-stone-100 placeholder:text-stone-500"
-                  : "border-stone-400 bg-white text-stone-900 placeholder:text-stone-500"
-              }`}
-            />
-            <button
-              type="submit"
-              disabled={isThinking || finished || input.trim().length === 0}
-              aria-label="Send move"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400 text-stone-950 hover:bg-amber-300 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
+        {/* Suggested Quick Actions */}
+        {!gameState.gameOver && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {suggestedActions.map((action, i) => (
+              <button
+                key={i}
+                onClick={() => handleActionSubmit(action)}
+                disabled={isThinking}
+                className={`text-xs sm:text-sm px-3.5 py-2 rounded-full border transition-all ${
+                  theme === 'dark' 
+                    ? 'border-slate-700 bg-slate-800/60 hover:bg-slate-700 text-slate-300' 
+                    : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Input Bar */}
+        <div className="mt-auto">
+          {gameState.gameOver ? (
+            <div className="p-4 rounded-2xl bg-red-950/40 border border-red-800 text-center space-y-3">
+              <ShieldAlert className="w-8 h-8 text-red-500 mx-auto" />
+              <h2 className="font-bold text-lg text-red-400">Game Over</h2>
+              <p className="text-xs sm:text-sm text-slate-300">Your flight departed without you, or your phone battery gave out in the middle of Silk Board!</p>
+              <button
+                onClick={resetGame}
+                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors text-sm"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <form 
+              onSubmit={(e) => { e.preventDefault(); handleActionSubmit(inputAction); }}
+              className={`flex items-center gap-2 p-2 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
             >
-              <Send className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </form>
-        </section>
+              <input
+                type="text"
+                value={inputAction}
+                onChange={(e) => setInputAction(e.target.value)}
+                placeholder="What do you do next?"
+                disabled={isThinking}
+                className="flex-1 bg-transparent px-4 py-2 text-sm sm:text-base focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isThinking || !inputAction.trim()}
+                className="p-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white transition-colors"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </form>
+          )}
+        </div>
+
       </div>
     </main>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* HUD item                                                           */
-/* ------------------------------------------------------------------ */
-
-interface HudItemProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  subtle: string;
-  warn?: boolean;
-}
-
-function HudItem({ icon, label, value, subtle, warn = false }: HudItemProps) {
-  return (
-    <div className="min-w-0">
-      <div className={`flex items-center gap-1 text-xs ${subtle}`}>
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div
-        className={`truncate text-sm font-semibold sm:text-base ${
-          warn ? "text-red-500" : ""
-        }`}
-        title={value}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
