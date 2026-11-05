@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     };
 
     // If API key is missing or invalid, use an immersive local fallback
-    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    if (!apiKey || apiKey === 'your_gemini_api_key_here' || apiKey.trim() === '') {
       const fallbackNarratives = [
         "The traffic sergeant blows his whistle frantically. You manage to squeeze past a row of stalled cabs into a service lane, gaining precious distance towards KIA.",
         "An auto driver shakes his head at first, but after some quick bargaining, agrees to take the shortcut through the narrow inner lanes. Time ticks down!",
@@ -74,6 +74,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
+    // Safe fallback that does not reference gameState directly to avoid compilation errors
     return NextResponse.json({
       text: "The signal finally turns green for 3 seconds! You surge forward amidst a flurry of honking autos and bikes, moving closer to the airport expressway.",
       timeMinutes: 420,
