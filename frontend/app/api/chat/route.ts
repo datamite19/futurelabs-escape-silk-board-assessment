@@ -42,6 +42,48 @@ const FALLBACK_NARRATIVES: string[] = [
   "The overhead electronic board flashes red. You hop onto a passing feeder bus, bypassing a massive gridlock entirely.",
 ];
 
+// Optional second model to try if the main one is overloaded.
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "";
+
+export const maxDuration = 30;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const isBusyError = (message: string): boolean =>
+  /503|429|overloaded|high demand|unavailable|quota/i.test(message);
+
+// Tries the main model up to 3 times, then the fallback model once.
+async function generateWithRetry(
+  genAI: GoogleGenerativeAI,
+  prompt: string
+): Promise<string> {
+  const attempts: string[] = [MODEL_NAME, MODEL_NAME, MODEL_NAME];
+  if (FALLBACK_MODEL && FALLBACK_MODEL !== MODEL_NAME) {
+    attempts.push(FALLBACK_MODEL);
+  }
+
+  let lastError: unknown = new Error("No attempts were made");
+
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: attempts[i],
+        generationConfig: { responseMimeType: "application/json" },
+      });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (err: unknown) {
+      lastError = err;
+      const message = err instanceof Error ? err.message : String(err);
+      if (!isBusyError(message)) throw err; // real problem: don't retry
+      if (i < attempts.length - 1) await sleep(700 * (i + 1));
+    }
+  }
+
+  throw lastError;
+}
+
 const toNumber = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
@@ -89,11 +131,6 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
     const prompt = `You are a witty, gritty text-based survival game narrator set in Bengaluru, India.
 The player is trying to escape Silk Board Junction to reach Kempegowda International Airport (KIA) before their 9:10 PM flight (${FLIGHT_MINUTES} minutes from midnight).
 
@@ -116,8 +153,7 @@ Respond with a single JSON object and nothing else, with exactly these keys:
   "gameOver": boolean
 }`;
 
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text();
+    const raw = await generateWithRetry(genAI, prompt);
     const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
     const data: Record<string, unknown> = JSON.parse(cleaned);
 
