@@ -1,24 +1,17 @@
-# Silk Board Survival: Catch the Flight 🚦✈️
+# Silk Board Survival - Namma Bengaluru Traffic Edition
 
-An interactive, AI-driven, text-based survival game where the objective is simple but the reality is brutal: You are stuck at Bengaluru's infamous Silk Board Junction at 7:00 PM, and you must make it to Bengaluru International Airport before your flight boarding closes at 9:10 PM.
+A gritty, witty, text-based survival web application where players attempt to escape the infamous Silk Board Junction gridlock in Bengaluru and reach Kempegowda International Airport (KIA) before their flight departure.
 
-## 🚀 Features
-*   **C++23 Game Engine:** A highly strict, non-negotiable C++ backend enforces time, money, battery life, and route validation. No teleportation allowed!
-*   **Gemini AI Narrator:** The storyteller is a witty, sarcastic Bengaluru local powered by Google Gemini, processing your inputs and spinning a hilarious narrative.
-*   **Dynamic Meme Delivery:** The AI automatically scans conversational context and injects custom SVGs (20 original memes) into the iMessage-inspired UI.
-*   **Next.js Frontend:** A beautiful, responsive chat interface mimicking a mobile messaging app, built with Tailwind CSS.
+## Live Demo & Walkthrough
+- **Live App URL**: [https://futurelabs-escape-silk-board-assess-six.vercel.app](https://futurelabs-escape-silk-board-assess-six.vercel.app)
+- **Video Walkthrough (Loom)**: [Watch the Loom Video](https://www.loom.com/share/1d94d00da9a74a8dbb321ce41f2cec39)
 
-## 📁 Directory Structure
-*   `/backend/cpp-engine/` - The authoritative C++ rules engine and HTTP server.
-*   `/frontend/` - The Next.js React user interface and API proxy.
-*   `/data/` - Slang dictionaries and mock trend data.
-*   `/docs/` - Comprehensive guides to the architecture and deployment.
+## Tech Stack
+- **Frontend**: Next.js 14 (App Router), React, Tailwind CSS, Lucide Icons
+- **AI Integration**: Google Gen AI SDK (`@google/generative-ai`), Gemini 1.5 / 3.5 Flash
+- **Hosting & Deployment**: Vercel
 
-## 🛠️ Tech Stack
-*   **Frontend:** Next.js 14, React, Tailwind CSS, TypeScript
-*   **Backend Engine:** C++23, CMake, cpp-httplib, GoogleTest
-*   **AI:** Google Gemini API (`gemini-1.5-flash`)
-*   **Assets:** Original SVGs dynamically routed via JSON manifests.
-
-## 📜 Getting Started
-Check out `BEGINNER_RUN_GUIDE.md` for dead-simple instructions on how to get this running on your local machine in under 5 minutes!
+## Environment Variables Setup
+To run or deploy this project, configure the following environment variable in Vercel or your local `.env` file:
+- `GEMINI_API_KEY`: Your Google Gemini API key.
+- `GEMINI_MODEL`: `gemini-3.5-flash-lite` (or `gemini-1.5-flash`)
