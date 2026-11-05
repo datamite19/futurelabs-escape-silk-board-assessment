@@ -42,42 +42,72 @@ const FALLBACK_NARRATIVES: string[] = [
   "The overhead electronic board flashes red. You hop onto a passing feeder bus, bypassing a massive gridlock entirely.",
 ];
 
-// Optional second model to try if the main one is overloaded.
+// Optional second model to try if the main one is overloaded or slow.
 const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "";
 
-export const maxDuration = 30;
+// Hard limits so the request always finishes before Vercel's timeout.
+const TOTAL_BUDGET_MS = 8000;
+const ATTEMPT_TIMEOUT_MS = 5000;
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 const isBusyError = (message: string): boolean =>
-  /503|429|overloaded|high demand|unavailable|quota/i.test(message);
+  /503|429|overloaded|high demand|unavailable|quota|timed out/i.test(message);
 
-// Tries the main model up to 3 times, then the fallback model once.
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Gemini timed out after ${ms} ms`)),
+      ms
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+// Tries the main model, then the fallback model (if set), then the main model
+// once more, all within TOTAL_BUDGET_MS.
 async function generateWithRetry(
   genAI: GoogleGenerativeAI,
   prompt: string
 ): Promise<string> {
-  const attempts: string[] = [MODEL_NAME, MODEL_NAME, MODEL_NAME];
+  const startedAt = Date.now();
+  const attempts: string[] = [MODEL_NAME];
   if (FALLBACK_MODEL && FALLBACK_MODEL !== MODEL_NAME) {
     attempts.push(FALLBACK_MODEL);
   }
+  attempts.push(MODEL_NAME);
 
   let lastError: unknown = new Error("No attempts were made");
 
   for (let i = 0; i < attempts.length; i++) {
+    const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+    if (remaining < 1500) break;
+
     try {
       const model = genAI.getGenerativeModel({
         model: attempts[i],
         generationConfig: { responseMimeType: "application/json" },
       });
-      const result = await model.generateContent(prompt);
+      const result = await withTimeout(
+        model.generateContent(prompt),
+        Math.min(ATTEMPT_TIMEOUT_MS, remaining)
+      );
       return result.response.text();
     } catch (err: unknown) {
       lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       if (!isBusyError(message)) throw err; // real problem: don't retry
-      if (i < attempts.length - 1) await sleep(700 * (i + 1));
+      await sleep(300);
     }
   }
 
