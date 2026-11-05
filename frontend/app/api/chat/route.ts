@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const apiKey = process.env.GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(apiKey);
-
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    const body = await req.json();
     const action = body?.action || "Move forward";
     const gameState = body?.gameState || {
       timeMinutes: 405,
@@ -74,7 +74,6 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    // Safe fallback that does not reference gameState directly to avoid compilation errors
     return NextResponse.json({
       text: "The signal finally turns green for 3 seconds! You surge forward amidst a flurry of honking autos and bikes, moving closer to the airport expressway.",
       timeMinutes: 420,
