@@ -10,7 +10,7 @@ interface Turn {
 }
 
 interface GameState {
-  timeMinutes: number; // e.g. 420 for 7:00 PM
+  timeMinutes: number; // e.g. 405 for 6:45 PM
   location: string;
   cash: number;
   battery: number;
@@ -38,7 +38,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat history
+  // Auto-scroll chat history safely
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -112,12 +112,24 @@ export default function App() {
     "Walk along the service road"
   ];
 
+  const overlay = theme === 'dark' 
+    ? 'linear-gradient(to bottom, rgba(3, 7, 18, 0.92), rgba(15, 23, 42, 0.96))' 
+    : 'linear-gradient(to bottom, rgba(248, 250, 252, 0.92), rgba(241, 245, 249, 0.96))';
+
   return (
-    <main className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800'}`}>
+    <main 
+      className={`min-h-screen w-full transition-colors duration-300 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}
+      style={{
+        backgroundImage: `${overlay}, url('/memes/16_traffic.svg')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+      }}
+    >
       <div className="max-w-3xl mx-auto p-4 sm:p-6 flex flex-col min-h-screen">
         
         {/* Header Bar */}
-        <header className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/40">
+        <header className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/40 backdrop-blur-md">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-amber-500 to-orange-600 bg-clip-text text-transparent">
               Silk Board Survival
@@ -145,7 +157,7 @@ export default function App() {
         </header>
 
         {/* HUD Status Bar */}
-        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl mb-6 border shadow-lg ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl mb-6 border shadow-xl backdrop-blur-md ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800/80' : 'bg-white/80 border-slate-200'}`}>
           <div className="flex items-center gap-3">
             <Clock className="w-5 h-5 text-amber-500" />
             <div>
@@ -179,14 +191,14 @@ export default function App() {
         {/* Chat / Narrative Window */}
         <div 
           ref={chatScrollRef} 
-          className={`flex-1 overflow-y-auto max-h-[50vh] sm:max-h-[55vh] p-4 rounded-2xl mb-4 space-y-4 border ${theme === 'dark' ? 'bg-slate-900/40 border-slate-800' : 'bg-white/80 border-slate-200'}`}
+          className={`flex-1 overflow-y-auto max-h-[50vh] sm:max-h-[55vh] p-4 rounded-2xl mb-4 space-y-4 border backdrop-blur-md ${theme === 'dark' ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white/90 border-slate-200'}`}
         >
           {turns.map((turn, idx) => (
             <div key={idx} className={`flex flex-col ${turn.sender === 'player' ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl text-sm sm:text-base shadow-sm ${
+              <div className={`max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl text-sm sm:text-base shadow-md ${
                 turn.sender === 'player' 
                   ? 'bg-amber-600 text-white rounded-br-none' 
-                  : theme === 'dark' ? 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700/50' : 'bg-slate-100 text-slate-900 rounded-bl-none border border-slate-200'
+                  : theme === 'dark' ? 'bg-slate-800/90 text-slate-200 rounded-bl-none border border-slate-700/50' : 'bg-slate-100 text-slate-900 rounded-bl-none border border-slate-200'
               }`}>
                 {turn.text}
                 {turn.meme && (
@@ -213,10 +225,10 @@ export default function App() {
                 key={i}
                 onClick={() => handleActionSubmit(action)}
                 disabled={isThinking}
-                className={`text-xs sm:text-sm px-3.5 py-2 rounded-full border transition-all ${
+                className={`text-xs sm:text-sm px-3.5 py-2 rounded-full border transition-all backdrop-blur-sm ${
                   theme === 'dark' 
-                    ? 'border-slate-700 bg-slate-800/60 hover:bg-slate-700 text-slate-300' 
-                    : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+                    ? 'border-slate-700/80 bg-slate-800/70 hover:bg-slate-700 text-slate-300' 
+                    : 'border-slate-300 bg-white/80 hover:bg-slate-100 text-slate-700'
                 }`}
               >
                 {action}
@@ -228,7 +240,7 @@ export default function App() {
         {/* Input Bar */}
         <div className="mt-auto">
           {gameState.gameOver ? (
-            <div className="p-4 rounded-2xl bg-red-950/40 border border-red-800 text-center space-y-3">
+            <div className="p-4 rounded-2xl bg-red-950/80 border border-red-800 text-center space-y-3 backdrop-blur-md">
               <ShieldAlert className="w-8 h-8 text-red-500 mx-auto" />
               <h2 className="font-bold text-lg text-red-400">Game Over</h2>
               <p className="text-xs sm:text-sm text-slate-300">Your flight departed without you, or your phone battery gave out in the middle of Silk Board!</p>
@@ -242,7 +254,7 @@ export default function App() {
           ) : (
             <form 
               onSubmit={(e) => { e.preventDefault(); handleActionSubmit(inputAction); }}
-              className={`flex items-center gap-2 p-2 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
+              className={`flex items-center gap-2 p-2 rounded-2xl border backdrop-blur-md shadow-lg ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}
             >
               <input
                 type="text"
