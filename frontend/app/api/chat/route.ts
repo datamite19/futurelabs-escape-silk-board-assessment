@@ -6,7 +6,15 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: Request) {
   try {
-    const { action, gameState } = await req.json();
+    const body = await req.json();
+    const action = body?.action || "Move forward";
+    const gameState = body?.gameState || {
+      timeMinutes: 405,
+      location: "Silk Board Junction",
+      cash: 1200,
+      battery: 42,
+      gameOver: false
+    };
 
     // If API key is missing or invalid, use an immersive local fallback
     if (!apiKey || apiKey === 'your_gemini_api_key_here') {
@@ -32,7 +40,7 @@ export async function POST(req: Request) {
     const prompt = `You are a witty, gritty text-based survival game narrator set in Bengaluru, India. 
     The player is trying to escape Silk Board Junction to reach Kempegowda International Airport (KIA) before their 9:10 PM flight (550 minutes from midnight).
     Current Game State:
-    - Time (minutes from midnight): ${gameState.timeMinutes} (e.g., 420 is 7:00 PM)
+    - Time (minutes from midnight): ${gameState.timeMinutes}
     - Location: ${gameState.location}
     - Cash: ₹${gameState.cash}
     - Battery: ${gameState.battery}%
@@ -42,12 +50,12 @@ export async function POST(req: Request) {
     Respond in strict JSON format with no markdown wrappers, exactly like this:
     {
       "text": "Your vivid, immersive narrative response here continuing the Bengaluru traffic escape...",
-      "timeMinutes": number (increment by 10 to 30 mins based on action),
+      "timeMinutes": number,
       "location": "Updated location name",
-      "cash": number (adjusted cash),
-      "battery": number (adjusted battery),
+      "cash": number,
+      "battery": number,
       "meme": "/memes/16_traffic.svg",
-      "gameOver": boolean (true if timeMinutes >= 550 or battery <= 0 or reached airport)
+      "gameOver": boolean
     }`;
 
     const result = await model.generateContent(prompt);
@@ -57,8 +65,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       text: data.text || "You navigate through the dense traffic successfully.",
-      timeMinutes: data.timeMinutes || gameState.timeMinutes + 15,
-      location: data.location || gameState.location,
+      timeMinutes: data.timeMinutes ?? gameState.timeMinutes + 15,
+      location: data.location ?? gameState.location,
       cash: data.cash ?? gameState.cash,
       battery: data.battery ?? gameState.battery,
       meme: data.meme || "/memes/16_traffic.svg",
@@ -68,10 +76,10 @@ export async function POST(req: Request) {
   } catch (error: any) {
     return NextResponse.json({
       text: "The signal finally turns green for 3 seconds! You surge forward amidst a flurry of honking autos and bikes, moving closer to the airport expressway.",
-      timeMinutes: gameState.timeMinutes + 15,
+      timeMinutes: 420,
       location: "Central Silk Board Flyover",
-      cash: Math.max(50, gameState.cash - 50),
-      battery: Math.max(5, gameState.battery - 5),
+      cash: 1100,
+      battery: 35,
       meme: "/memes/16_traffic.svg",
       gameOver: false
     });
