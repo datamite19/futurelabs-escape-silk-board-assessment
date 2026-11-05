@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json()
     const action = body?.action || "Move forward";
     const gameState = body?.gameState || {
       timeMinutes: 405,
