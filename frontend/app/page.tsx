@@ -201,11 +201,6 @@ export default function App() {
                   : theme === 'dark' ? 'bg-slate-800/90 text-slate-200 rounded-bl-none border border-slate-700/50' : 'bg-slate-100 text-slate-900 rounded-bl-none border border-slate-200'
               }`}>
                 {turn.text}
-                {turn.meme && (
-                  <div className="mt-3 rounded-lg overflow-hidden border border-slate-700">
-                    <img src={turn.meme} alt="Traffic situation visual" className="w-full h-48 object-cover" />
-                  </div>
-                )}
               </div>
             </div>
           ))}
